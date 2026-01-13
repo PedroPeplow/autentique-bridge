@@ -5,7 +5,6 @@ import FormData from "form-data";
 
 const app = express();
 const upload = multer();
-app.use(express.json());
 
 app.post("/autentique", upload.single("file"), async (req, res) => {
   try {
@@ -16,6 +15,10 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Arquivo não enviado" });
     }
 
+    if (!email) {
+      return res.status(400).json({ error: "Email do signatário não informado" });
+    }
+
     if (!groupId) {
       return res.status(400).json({ error: "groupId não informado" });
     }
@@ -24,10 +27,12 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       query: `
         mutation CreateDocument(
           $document: DocumentInput!
+          $signers: [SignerInput!]!
           $file: Upload!
         ) {
           createDocument(
-            document: $document,
+            document: $document
+            signers: $signers
             file: $file
           ) {
             id
@@ -37,15 +42,15 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       `,
       variables: {
         document: {
-          name: name || "Documento via FiqOn",
-          groupId: groupId,
-          signers: [
-            {
-              email: email,
-              action: "SIGN"
-            }
-          ]
-        }
+          name: name || "Documento via Render",
+          groupId: groupId
+        },
+        signers: [
+          {
+            email: email,
+            action: "SIGN"
+          }
+        ]
       }
     };
 
@@ -57,7 +62,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     const response = await fetch("https://api.autentique.com.br/v2/graphql", {
       method: "POST",
       headers: {
-        Authorization: `Bearer d18c6a57699bf89f29dcb5a4690560deb0473287006b57fe652ab4ef73176ee5`
+        Authorization: `Bearer ${process.env.AUTENTIQUE_TOKEN}`
       },
       body: formData
     });
@@ -69,11 +74,16 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     }
 
     res.json(result.data.createDocument);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+app.get("/", (_, res) => {
+  res.send("Autentique Bridge OK");
+});
+
 app.listen(process.env.PORT || 3000, () => {
   console.log("Autentique bridge rodando");
-});
+});;
