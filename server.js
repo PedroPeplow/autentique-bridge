@@ -6,11 +6,24 @@ import FormData from "form-data";
 const app = express();
 const upload = multer();
 
+/**
+ * Health check
+ */
+app.get("/", (_, res) => {
+  res.send("Autentique Bridge OK");
+});
+
+/**
+ * Endpoint principal
+ */
 app.post("/autentique", upload.single("file"), async (req, res) => {
   try {
     const { name, email, groupId } = req.body;
     const file = req.file;
 
+    // =======================
+    // Validações básicas
+    // =======================
     if (!file) {
       return res.status(400).json({ error: "Arquivo não enviado" });
     }
@@ -23,6 +36,9 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "groupId não informado" });
     }
 
+    // =======================
+    // GraphQL Operations
+    // =======================
     const operations = {
       query: `
         mutation CreateDocument(
@@ -54,11 +70,17 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       }
     };
 
+    // =======================
+    // Multipart (GraphQL Upload Spec)
+    // =======================
     const formData = new FormData();
     formData.append("operations", JSON.stringify(operations));
     formData.append("map", JSON.stringify({ "0": ["variables.file"] }));
     formData.append("0", file.buffer, file.originalname);
 
+    // =======================
+    // Request para Autentique
+    // =======================
     const response = await fetch("https://api.autentique.com.br/v2/graphql", {
       method: "POST",
       headers: {
@@ -69,21 +91,45 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
 
     const result = await response.json();
 
+    // =======================
+    // Tratamento de erro GraphQL
+    // =======================
     if (result.errors) {
-      return res.status(400).json(result);
+      console.error("❌ Autentique GraphQL errors:", JSON.stringify(result.errors));
+      return res.status(400).json({
+        error: "Erro ao criar documento na Autentique",
+        details: result.errors
+      });
     }
 
-    res.json(result.data.createDocument);
+    // =======================
+    // Validação de resposta
+    // =======================
+    if (!result.data || !result.data.createDocument) {
+      console.error("❌ Resposta inesperada da Autentique:", JSON.stringify(result));
+      return res.status(500).json({
+        error: "Resposta inválida da Autentique",
+        raw: result
+      });
+    }
+
+    // =======================
+    // Sucesso
+    // =======================
+    return res.json(result.data.createDocument);
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("🔥 Erro inesperado:", err);
+    return res.status(500).json({
+      error: "Erro interno no Autentique Bridge",
+      message: err.message
+    });
   }
 });
 
-app.get("/", (_, res) => {
-  res.send("Autentique Bridge OK");
-});
-
+/**
+ * Start server
+ */
 app.listen(process.env.PORT || 3000, () => {
-  console.log("Autentique bridge rodando");
-});;
+  console.log("🚀 Autentique Bridge rodando");
+});
