@@ -22,7 +22,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     const file = req.file;
 
     // =======================
-    // Validações básicas
+    // Validações
     // =======================
     if (!file) {
       return res.status(400).json({ error: "Arquivo não enviado" });
@@ -37,7 +37,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     }
 
     // =======================
-    // GraphQL Operations
+    // GraphQL (Autentique)
     // =======================
     const operations = {
       query: `
@@ -45,11 +45,13 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
           $document: DocumentInput!
           $signers: [SignerInput!]!
           $file: Upload!
+          $groupId: ID!
         ) {
           createDocument(
             document: $document
             signers: $signers
             file: $file
+            groupId: $groupId
           ) {
             id
             name
@@ -58,20 +60,20 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       `,
       variables: {
         document: {
-          name: name || "Documento via Render",
-          groupId: groupId
+          name: name || "Documento via Render"
         },
         signers: [
           {
             email: email,
             action: "SIGN"
           }
-        ]
+        ],
+        groupId: groupId
       }
     };
 
     // =======================
-    // Multipart (GraphQL Upload Spec)
+    // Multipart GraphQL Upload
     // =======================
     const formData = new FormData();
     formData.append("operations", JSON.stringify(operations));
@@ -79,7 +81,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     formData.append("0", file.buffer, file.originalname);
 
     // =======================
-    // Request para Autentique
+    // Chamada à Autentique
     // =======================
     const response = await fetch("https://api.autentique.com.br/v2/graphql", {
       method: "POST",
@@ -92,21 +94,18 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     const result = await response.json();
 
     // =======================
-    // Tratamento de erro GraphQL
+    // Tratamento de erros
     // =======================
     if (result.errors) {
-      console.error("❌ Autentique GraphQL errors:", JSON.stringify(result.errors));
+      console.error("❌ Erros Autentique:", JSON.stringify(result.errors));
       return res.status(400).json({
         error: "Erro ao criar documento na Autentique",
         details: result.errors
       });
     }
 
-    // =======================
-    // Validação de resposta
-    // =======================
     if (!result.data || !result.data.createDocument) {
-      console.error("❌ Resposta inesperada da Autentique:", JSON.stringify(result));
+      console.error("❌ Resposta inválida Autentique:", JSON.stringify(result));
       return res.status(500).json({
         error: "Resposta inválida da Autentique",
         raw: result
