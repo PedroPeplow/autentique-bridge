@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import fetch from "node-fetch";
 import FormData from "form-data";
 
 const app = express();
@@ -56,8 +57,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     const response = await fetch("https://api.autentique.com.br/v2/graphql", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.AUTENTIQUE_API_KEY}`,
-        ...formData.getHeaders()
+        Authorization: `Bearer ${process.env.AUTENTIQUE_API_KEY}`
       },
       body: formData
     });
@@ -70,7 +70,6 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
 
     res.json(result.data.createDocument);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
