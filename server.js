@@ -57,7 +57,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     const response = await fetch("https://api.autentique.com.br/v2/graphql", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.AUTENTIQUE_API_KEY}`
+        Authorization: `Bearer d18c6a57699bf89f29dcb5a4690560deb0473287006b57fe652ab4ef73176ee5`
       },
       body: formData
     });
