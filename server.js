@@ -18,7 +18,7 @@ app.get("/", (_, res) => {
  */
 app.post("/autentique", upload.single("file"), async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, signerName } = req.body;
     const file = req.file;
 
     // =======================
@@ -31,6 +31,11 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: "Email do signatário não informado" });
     }
+
+    const finalSignerName =
+      signerName ||
+      name ||
+      "Assinante";
 
     // =======================
     // GraphQL (Autentique)
@@ -58,6 +63,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
         },
         signers: [
           {
+            name: finalSignerName,
             email: email,
             action: "SIGN"
           }
