@@ -18,7 +18,7 @@ app.get("/", (_, res) => {
  */
 app.post("/autentique", upload.single("file"), async (req, res) => {
   try {
-    const { name, email, groupId } = req.body;
+    const { name, email } = req.body;
     const file = req.file;
 
     // =======================
@@ -32,10 +32,6 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Email do signatário não informado" });
     }
 
-    if (!groupId) {
-      return res.status(400).json({ error: "groupId não informado" });
-    }
-
     // =======================
     // GraphQL (Autentique)
     // =======================
@@ -45,13 +41,11 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
           $document: DocumentInput!
           $signers: [SignerInput!]!
           $file: Upload!
-          $groupId: ID!
         ) {
           createDocument(
             document: $document
             signers: $signers
             file: $file
-            groupId: $groupId
           ) {
             id
             name
@@ -67,8 +61,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
             email: email,
             action: "SIGN"
           }
-        ],
-        groupId: groupId
+        ]
       }
     };
 
