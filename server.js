@@ -51,7 +51,11 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
             document: $document
             signers: $signers
             file: $file
-          ) {
+          ) TransferDocument($document_id: ID!, $group_id: ID!) {
+      transferDocument(
+        document_id: $document_id
+        group_id: $group_id
+      ){
             id
             name
           }
