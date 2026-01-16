@@ -6,6 +6,9 @@ import FormData from "form-data";
 const app = express();
 const upload = multer();
 
+const AUTENTIQUE_URL = "https://api.autentique.com.br/v2/graphql";
+const FOLDER_ID = "945692871074d179b88e7400617e8ab5327f19d6";
+
 /**
  * Health check
  */
@@ -32,13 +35,10 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Email do signatário não informado" });
     }
 
-    const finalSignerName =
-      signerName ||
-      name ||
-      "Assinante";
+    const finalSignerName = signerName || name || "Assinante";
 
     // =======================
-    // GraphQL (Autentique)
+    // 1️⃣ CREATE DOCUMENT
     // =======================
     const operations = {
       query: `
@@ -50,9 +50,8 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
           createDocument(
             document: $document
             signers: $signers
-            file: $file 
-            group_id: 945692871074d179b88e7400617e8ab5327f19d6
-      ){
+            file: $file
+          ) {
             id
             name
           }
@@ -72,18 +71,12 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       }
     };
 
-    // =======================
-    // Multipart GraphQL Upload
-    // =======================
     const formData = new FormData();
     formData.append("operations", JSON.stringify(operations));
     formData.append("map", JSON.stringify({ "0": ["variables.file"] }));
     formData.append("0", file.buffer, file.originalname);
 
-    // =======================
-    // Chamada à Autentique
-    // =======================
-    const response = await fetch("https://api.autentique.com.br/v2/graphql", {
+    const createResponse = await fetch(AUTENTIQUE_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.AUTENTIQUE_TOKEN}`
@@ -91,31 +84,77 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       body: formData
     });
 
-    const result = await response.json();
+    const createResult = await createResponse.json();
 
-    // =======================
-    // Tratamento de erros
-    // =======================
-    if (result.errors) {
-      console.error("❌ Erros Autentique:", JSON.stringify(result.errors));
+    if (createResult.errors) {
       return res.status(400).json({
-        error: "Erro ao criar documento na Autentique",
-        details: result.errors
+        error: "Erro ao criar documento",
+        details: createResult.errors
       });
     }
 
-    if (!result.data || !result.data.createDocument) {
-      console.error("❌ Resposta inválida Autentique:", JSON.stringify(result));
+    const documentId = createResult.data?.createDocument?.id;
+
+    if (!documentId) {
       return res.status(500).json({
-        error: "Resposta inválida da Autentique",
-        raw: result
+        error: "ID do documento não retornado",
+        raw: createResult
       });
     }
 
     // =======================
-    // Sucesso
+    // 2️⃣ MOVE DOCUMENT TO FOLDER
     // =======================
-    return res.json(result.data.createDocument);
+    const movePayload = {
+      query: `
+        mutation MoveDocumentToFolder(
+          $document_id: UUID!
+          $folder_id: UUID!
+        ) {
+          moveDocumentToFolder(
+            document_id: $document_id
+            folder_id: $folder_id
+          ) {
+            id
+          }
+        }
+      `,
+      variables: {
+        document_id: documentId,
+        folder_id: FOLDER_ID
+      }
+    };
+
+    const moveResponse = await fetch(AUTENTIQUE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.AUTENTIQUE_TOKEN}`
+      },
+      body: JSON.stringify(movePayload)
+    });
+
+    const moveResult = await moveResponse.json();
+
+    if (moveResult.errors) {
+      return res.status(400).json({
+        error: "Documento criado, mas falhou ao mover para pasta",
+        documentId,
+        details: moveResult.errors
+      });
+    }
+
+    // =======================
+    // 🎯 Sucesso total
+    // =======================
+    return res.json({
+      status: "OK",
+      document: {
+        id: documentId,
+        name: createResult.data.createDocument.name,
+        folder_id: FOLDER_ID
+      }
+    });
 
   } catch (err) {
     console.error("🔥 Erro inesperado:", err);
