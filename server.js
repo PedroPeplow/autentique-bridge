@@ -20,8 +20,15 @@ app.get("/", (_, res) => {
  */
 app.post("/autentique", upload.single("file"), async (req, res) => {
   try {
-    const { name, email, signerName, folderId } = req.body;
     const file = req.file;
+
+    // Campos (multipart/form-data)
+    const { name, email, signerName } = req.body || {};
+
+    // folderId pode vir em vários formatos (Fiqon varia bastante)
+    const folderId =
+      (req.body && (req.body.folderId || req.body.folder_id || req.body.folder)) ||
+      req.headers["x-folder-id"];
 
     // =======================
     // Validações
@@ -35,13 +42,17 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     }
 
     if (!folderId) {
-      return res.status(400).json({ error: "ID da pasta não informado" });
+      return res.status(400).json({
+        error: "ID da pasta não informado",
+        hint: "Envie folderId (ou folder_id) como campo de texto no multipart/form-data, junto com o arquivo.",
+        received_body_keys: Object.keys(req.body || {}),
+        received_headers_hint: {
+          "x-folder-id": req.headers["x-folder-id"] ? "presente" : "ausente"
+        }
+      });
     }
 
-    const finalSignerName =
-      signerName ||
-      name ||
-      "Assinante";
+    const finalSignerName = signerName || name || "Assinante";
 
     // =======================
     // 1) CREATE DOCUMENT
@@ -110,7 +121,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
     }
 
     // =======================
-    // 2) MOVE DOCUMENT TO FOLDER
+    // 2) MOVE DOCUMENT TO FOLDER (Boolean)
     // =======================
     const movePayload = {
       query: `
@@ -126,7 +137,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       `,
       variables: {
         document_id: documentId,
-        folder_id: folderId
+        folder_id: String(folderId).trim()
       }
     };
 
@@ -145,7 +156,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(400).json({
         error: "Documento criado, mas falhou ao mover para a pasta",
         documentId,
-        folderId,
+        folderId: String(folderId).trim(),
         details: moveResult.errors
       });
     }
@@ -154,7 +165,7 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       return res.status(500).json({
         error: "Movimentação do documento não confirmada",
         documentId,
-        folderId,
+        folderId: String(folderId).trim(),
         raw: moveResult
       });
     }
@@ -167,10 +178,9 @@ app.post("/autentique", upload.single("file"), async (req, res) => {
       document: {
         id: documentId,
         name: documentName,
-        folder_id: folderId
+        folder_id: String(folderId).trim()
       }
     });
-
   } catch (err) {
     console.error("Erro inesperado:", err);
     return res.status(500).json({
